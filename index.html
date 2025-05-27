@@ -15,16 +15,19 @@
     <p>Arrastra las cargas. Máximo 10 cargas. Valores en ±5μC. Fuerzas en N. Presiona "a" para agregar una carga.</p>
   </div>
   <canvas id="canvas" width="800" height="600"></canvas>
-<div style="text-align:center; margin-top: 5px;">
-  <button id="toggleGrid">Mostrar/Ocultar cuadriculado</button>
-</div>
+  <div style="text-align:center; margin-top: 5px;">
+    <button id="toggleGrid">Mostrar/Ocultar cuadriculado</button>
+  </div>
   <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     let showGrid = true;
+    const scale = 1e-2; // 1px = 1cm = 0.01m
+    const k = 8.99e9; // N·m²/C²
+    const chargeValue = 5e-6; // 5 μC en Coulombs
 
     function drawGrid() {
-      const spacing = 50; // 50 px = 0.5 m si scale = 1e-2
+      const spacing = 50; // 50 px = 0.5 m en escala
       ctx.strokeStyle = "#e0e0e0";
       ctx.lineWidth = 1;
       ctx.font = "10px sans-serif";
@@ -46,10 +49,6 @@
         ctx.fillText(`${(y * scale).toFixed(2)}m`, 2, y - 2);
       }
     }
-
-    const k = 8.99e9; // N·m²/C²
-    const scale = 1e-2; // 1px = 1cm = 0.01m
-    const chargeValue = 5e-6; // 5 μC en Coulombs
 
     const charges = [
       { x: 200, y: 300, q: chargeValue },
@@ -78,11 +77,6 @@
       }
     });
 
-    document.getElementById("toggleGrid").addEventListener("click", () => {
-      showGrid = !showGrid;
-      draw();
-    });
-
     function drawArrow(fromX, fromY, toX, toY, color = "red") {
       const headlen = 10;
       const dx = toX - fromX;
@@ -102,29 +96,38 @@
       ctx.fill();
     }
 
-    function computeForces() {
-      const forces = charges.map(_ => ({ fx: 0, fy: 0 }));
-      for (let i = 0; i < charges.length; i++) {
-        for (let j = 0; j < charges.length; j++) {
-          if (i === j) continue;
-          const dx = (charges[j].x - charges[i].x) * scale;
-          const dy = (charges[j].y - charges[i].y) * scale;
-          const r2 = dx * dx + dy * dy;
-          const r = Math.sqrt(r2);
-          const forceMag = k * Math.abs(charges[i].q * charges[j].q) / r2;
-          const sign = Math.sign(charges[i].q * charges[j].q) === 1 ? -1 : 1;
-          const fx = sign * forceMag * dx / r;
-          const fy = sign * forceMag * dy / r;
-          forces[i].fx += fx;
-          forces[i].fy += fy;
-        }
-      }
-      return forces;
+function computeForces() {
+  const forces = charges.map(_ => ({ fx: 0, fy: 0 }));
+  for (let i = 0; i < charges.length; i++) {
+    for (let j = 0; j < charges.length; j++) {
+      if (i === j) continue;
+      const dx = (charges[j].x - charges[i].x) * scale;
+      const dy = (charges[j].y - charges[i].y) * scale;
+      const r2 = dx * dx + dy * dy;
+      const r = Math.sqrt(r2);
+
+      // Unidad vectorial en la dirección de la fuerza
+      const ux = dx / r;
+      const uy = dy / r;
+
+      // Magnitud de la fuerza
+      const forceMag = k * Math.abs(charges[i].q * charges[j].q) / r2;
+
+      // Determinar el signo de la fuerza (atracción o repulsión)
+      const sign = charges[i].q * charges[j].q > 0 ? -1 : 1;
+
+      forces[i].fx += sign * forceMag * ux;
+      forces[i].fy += sign * forceMag * uy;
     }
+  }
+  return forces;
+}
+
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (showGrid) drawGrid();
+
       const forces = computeForces();
 
       for (let i = 0; i < charges.length; i++) {
@@ -145,7 +148,7 @@
         // Dibujar vector de fuerza
         const fx = forces[i].fx;
         const fy = forces[i].fy;
-        const scaleVec = 1e3; // Reducida para evitar vectores demasiado grandes
+        const scaleVec = 1e3;
         drawArrow(c.x, c.y, c.x + fx * scaleVec, c.y + fy * scaleVec);
 
         // Mostrar magnitud
@@ -165,7 +168,14 @@
       }
     });
 
+    // Evento para togglear el cuadriculado
+    document.getElementById("toggleGrid").addEventListener("click", () => {
+      showGrid = !showGrid;
+      draw();
+    });
+
     draw();
   </script>
 </body>
 </html>
+
