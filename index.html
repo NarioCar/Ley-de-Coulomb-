@@ -12,49 +12,27 @@
 </head>
 <body>
   <div id="info">
-    <p>Arrastra las cargas. Máximo 10 cargas. Valores en ±5μC. Fuerzas en N. Presiona "a" para agregar una carga.</p>
+    <p>Arrastra las cargas. Máximo 5 positivas y 5 negativas. Valores en ±5μC. Fuerzas en N.</p>
   </div>
   <canvas id="canvas" width="800" height="600"></canvas>
-<div style="text-align:center; margin-top: 5px;">
-  <button id="toggleGrid">Mostrar/Ocultar cuadriculado</button>
-</div>
+
+  <div style="text-align:center; margin-top: 5px;">
+    <button id="toggleGrid">Mostrar/Ocultar cuadriculado</button>
+    <button id="addPositive">Agregar +q</button>
+    <button id="addNegative">Agregar -q</button>
+    <button id="clearCharges">Limpiar cargas</button>
+  </div>
+
   <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    let showGrid = true;
-
-    function drawGrid() {
-      const spacing = 50; // 50 px = 0.5 m si scale = 1e-2
-      ctx.strokeStyle = "#e0e0e0";
-      ctx.lineWidth = 1;
-      ctx.font = "10px sans-serif";
-      ctx.fillStyle = "#999";
-      ctx.textAlign = "left";
-
-      for (let x = 0; x <= canvas.width; x += spacing) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-        ctx.fillText(`${(x * scale).toFixed(2)}m`, x + 2, 12);
-      }
-      for (let y = 0; y <= canvas.height; y += spacing) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-        ctx.fillText(`${(y * scale).toFixed(2)}m`, 2, y - 2);
-      }
-    }
-
     const k = 8.99e9; // N·m²/C²
     const scale = 1e-2; // 1px = 1cm = 0.01m
     const chargeValue = 5e-6; // 5 μC en Coulombs
 
-    const charges = [
-      { x: 200, y: 300, q: chargeValue },
-      { x: 600, y: 300, q: -chargeValue }
-    ];
+    let showGrid = true;
+
+    const charges = [];
 
     let selected = null;
 
@@ -83,6 +61,27 @@
       draw();
     });
 
+    document.getElementById("addPositive").addEventListener("click", () => {
+      const positiveCount = charges.filter(c => c.q > 0).length;
+      if (positiveCount < 5) {
+        charges.push({ x: 100 + charges.length * 50, y: 100, q: chargeValue });
+        draw();
+      }
+    });
+
+    document.getElementById("addNegative").addEventListener("click", () => {
+      const negativeCount = charges.filter(c => c.q < 0).length;
+      if (negativeCount < 5) {
+        charges.push({ x: 100 + charges.length * 50, y: 150, q: -chargeValue });
+        draw();
+      }
+    });
+
+    document.getElementById("clearCharges").addEventListener("click", () => {
+      charges.length = 0;
+      draw();
+    });
+
     function drawArrow(fromX, fromY, toX, toY, color = "red") {
       const headlen = 10;
       const dx = toX - fromX;
@@ -102,6 +101,30 @@
       ctx.fill();
     }
 
+    function drawGrid() {
+      const spacing = 50;
+      ctx.strokeStyle = "#e0e0e0";
+      ctx.lineWidth = 1;
+      ctx.font = "10px sans-serif";
+      ctx.fillStyle = "#999";
+      ctx.textAlign = "left";
+
+      for (let x = 0; x <= canvas.width; x += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+        ctx.fillText(`${(x * scale).toFixed(2)}m`, x + 2, 12);
+      }
+      for (let y = 0; y <= canvas.height; y += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+        ctx.fillText(`${(y * scale).toFixed(2)}m`, 2, y - 2);
+      }
+    }
+
     function computeForces() {
       const forces = charges.map(_ => ({ fx: 0, fy: 0 }));
       for (let i = 0; i < charges.length; i++) {
@@ -112,9 +135,11 @@
           const r2 = dx * dx + dy * dy;
           const r = Math.sqrt(r2);
           const forceMag = k * Math.abs(charges[i].q * charges[j].q) / r2;
-          const sign = Math.sign(charges[i].q * charges[j].q) === 1 ? -1 : 1;
+
+          const sign = charges[i].q * charges[j].q > 0 ? -1 : 1; // repulsión o atracción
           const fx = sign * forceMag * dx / r;
           const fy = sign * forceMag * dy / r;
+
           forces[i].fx += fx;
           forces[i].fy += fy;
         }
@@ -125,30 +150,30 @@
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (showGrid) drawGrid();
+
       const forces = computeForces();
 
       for (let i = 0; i < charges.length; i++) {
         const c = charges[i];
-        // Dibujar carga
+        // Carga
         ctx.beginPath();
         ctx.arc(c.x, c.y, 15, 0, Math.PI * 2);
         ctx.fillStyle = c.q > 0 ? "red" : "blue";
         ctx.fill();
         ctx.strokeStyle = "black";
         ctx.stroke();
-        // Texto de carga
         ctx.fillStyle = "white";
         ctx.font = "bold 10px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(c.q > 0 ? "+q" : "-q", c.x, c.y + 5);
 
-        // Dibujar vector de fuerza
+        // Vector fuerza
         const fx = forces[i].fx;
         const fy = forces[i].fy;
-        const scaleVec = 1e3; // Reducida para evitar vectores demasiado grandes
+        const scaleVec = 1e3;
         drawArrow(c.x, c.y, c.x + fx * scaleVec, c.y + fy * scaleVec);
 
-        // Mostrar magnitud
+        // Magnitud
         const fMag = Math.sqrt(fx * fx + fy * fy);
         ctx.fillStyle = "black";
         ctx.font = "12px sans-serif";
@@ -156,17 +181,9 @@
       }
     }
 
-    // Agrega hasta 10 cargas con valor fijo ±5μC alternando signo
-    document.addEventListener("keydown", e => {
-      if (e.key === "a" && charges.length < 10) {
-        const sign = charges.length % 2 === 0 ? 1 : -1;
-        charges.push({ x: 100 + charges.length * 50, y: 100, q: sign * chargeValue });
-        draw();
-      }
-    });
-
     draw();
   </script>
 </body>
 </html>
+
 
